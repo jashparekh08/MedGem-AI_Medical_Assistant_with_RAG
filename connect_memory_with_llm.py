@@ -1,26 +1,23 @@
-import os # Used to access environment variables
-
-from langchain_huggingface import HuggingFaceEndpoint # Used to load the LLM from HuggingFace
-from langchain_core.prompts import PromptTemplate # Used to create custom prompts
-from langchain.chains import RetrievalQA # Used to create a question-answering chain
-from langchain_huggingface import HuggingFaceEmbeddings # Used for generating embeddings
-from langchain_community.vectorstores import FAISS # Used for storing and retrieving vector embeddings
+import os
+from langchain_huggingface import HuggingFaceEndpoint 
+from langchain_core.prompts import PromptTemplate 
+from langchain.chains import RetrievalQA
+from langchain_huggingface import HuggingFaceEmbeddings 
+from langchain_community.vectorstores import FAISS 
 
 
 # Step 1: Setup LLM (Mistral with HuggingFace)
-HF_TOKEN=os.environ.get("HF_TOKEN") # Load HuggingFace token from environment variable
-HUGGINGFACE_REPO_ID="mistralai/Mistral-7B-Instruct-v0.3" # The HuggingFace repository ID for the LLM
+HF_TOKEN=os.environ.get("HF_TOKEN") 
+HUGGINGFACE_REPO_ID="mistralai/Mistral-7B-Instruct-v0.3" 
 
-def load_llm(huggingface_repo_id): # This function initializes the LLM from HuggingFace
+def load_llm(huggingface_repo_id): 
     llm=HuggingFaceEndpoint(
-        repo_id=huggingface_repo_id, # The HuggingFace repository ID for the LLM
-        temperature=0.5,            # Controls the randomness of the model's output
+        repo_id=huggingface_repo_id,
+        temperature=0.5,            
         model_kwargs={"token":HF_TOKEN,
-                      "max_length":"512"} # Additional model parameters, including the token for authentication and the maximum length of the generated text
+                      "max_length":"512"} 
     )
     return llm
-
-
 
 # Step 2: Connect LLM with FAISS and Create chain
 
@@ -33,24 +30,24 @@ Context: {context}
 Question: {question}
 
 Start the answer directly. No small talk please.
-""" # This is a custom prompt template that instructs the LLM on how to respond to user queries based on the context provided.
+""" 
 
-def set_custom_prompt(custom_prompt_template): # This function creates a prompt template using the custom prompt template defined above
-    prompt=PromptTemplate(template=custom_prompt_template, input_variables=["context", "question"]) # Create a PromptTemplate instance
+def set_custom_prompt(custom_prompt_template): 
+    prompt=PromptTemplate(template=custom_prompt_template, input_variables=["context", "question"]) 
     return prompt
 
 # Load Database
-DB_FAISS_PATH="vectorstore/db_faiss" # Path to the FAISS database
-embedding_model=HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2") # Initialize the embedding model used for generating embeddings
-db=FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True) # Load the FAISS vector store from the specified path, allowing dangerous deserialization for compatibility with older versions of FAISS.
+DB_FAISS_PATH="vectorstore/db_faiss" 
+embedding_model=HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2") 
+db=FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True) 
 
 # Create QA chain
-qa_chain=RetrievalQA.from_chain_type( # Create a question-answering chain using the loaded LLM and the FAISS vector store
-    llm=load_llm(HUGGINGFACE_REPO_ID), # Load the LLM
-    chain_type="stuff",                # Use the "stuff" chain type, which is suitable for simple question-answering tasks
-    retriever=db.as_retriever(search_kwargs={'k':3}), # Use the FAISS vector store as a retriever, retrieving the top 3 relevant documents for each query
-    return_source_documents=True,      # Return the source documents along with the answer
-    chain_type_kwargs={'prompt':set_custom_prompt(CUSTOM_PROMPT_TEMPLATE)} # Set the custom prompt template for the chain
+qa_chain=RetrievalQA.from_chain_type( 
+    llm=load_llm(HUGGINGFACE_REPO_ID),
+    chain_type="stuff",                
+    retriever=db.as_retriever(search_kwargs={'k':3}), 
+    return_source_documents=True,      
+    chain_type_kwargs={'prompt':set_custom_prompt(CUSTOM_PROMPT_TEMPLATE)}
 )
 
 # Now invoke with a single query
@@ -58,5 +55,3 @@ user_query=input("Write Query Here: ")
 response=qa_chain.invoke({'query': user_query})
 print("RESULT: ", response["result"])
 print("SOURCE DOCUMENTS: ", response["source_documents"])
-
-
